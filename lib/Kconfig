@@ -1,0 +1,8 @@
+# Copyright (c) 2023 Maximilian Deubel
+# SPDX-License-Identifier: Apache-2.0
+
+menu "Libraries"
+
+rsource "xbox_controller_ble/Kconfig"
+
+endmenu

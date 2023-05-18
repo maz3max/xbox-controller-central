@@ -1,0 +1,20 @@
+# Copyright (c) 2023 Maximilian Deubel
+# SPDX-License-Identifier: Apache-2.0
+
+manifest:
+  self:
+    west-commands: scripts/west-commands.yml
+
+  remotes:
+    - name: ncs
+      url-base: https://github.com/nrfconnect
+
+  projects:
+    - name: nrf
+      remote: ncs
+      repo-path: sdk-nrf
+      revision: v2.3.0
+      import: true
+
+  self:
+    path: application

@@ -1,0 +1,24 @@
+menuconfig XBOX_CONTROLLER_BLE
+	bool "XBOX Controller BLE client"
+	depends on SETTINGS
+	depends on !SETTINGS_NONE
+	depends on BT
+	depends on BT_CENTRAL
+	depends on BT_SMP
+	depends on BT_BONDABLE
+	depends on BT_SETTINGS
+	depends on BT_GATT_CLIENT
+	depends on ZBUS
+	select BT_GATT_AUTO_UPDATE_MTU
+
+if XBOX_CONTROLLER_BLE
+
+config BT_L2CAP_TX_MTU
+	int "Maximum supported L2CAP MTU for L2CAP TX buffers"
+	default 512
+
+module = XBOX_CONTROLLER_BLE
+module-str = XBOX BLE
+source "subsys/logging/Kconfig.template.log_config"
+
+endif

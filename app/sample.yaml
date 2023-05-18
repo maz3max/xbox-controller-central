@@ -1,0 +1,14 @@
+# This file is provided so that the application can be compiled using Twister,
+# the Zephyr testing tool. In this file, multiple combinations can be specified,
+# so that you can easily test all of them locally or in CI.
+sample:
+  description: Example application
+  name: example-application 
+common:
+  build_only: true
+  integration_platforms:
+    - nrf7002dk_nrf5340_cpuapp
+# tests:
+#   app.default: {}
+#   app.debug:
+#     extra_args: OVERLAY_CONFIG="debug.conf"
