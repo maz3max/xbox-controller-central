@@ -38,6 +38,7 @@ uint16_t hids_info_attr_handle;
 uint16_t hids_ctrl_attr_handle;
 uint16_t hids_report_map_attr_handle;
 uint16_t hids_report_attr_handle;
+uint16_t hids_report_write_handle;
 
 static uint8_t received_report[16];
 static bool controller_connected_value;
@@ -69,17 +70,17 @@ static uint8_t notify_func(struct bt_conn *conn,
                 return BT_GATT_ITER_STOP;
         }
 
+        if (length != 16) {
+                LOG_ERR("Received report of unsupported length: %d", length);
+                return BT_GATT_ITER_CONTINUE;
+        }
+
         memcpy(received_report, data, MIN(ARRAY_SIZE(received_report), length));
 
 
         const struct xbox_controller_report * report = data;
 
         zbus_chan_pub(&controller_report, report, K_NO_WAIT);
-
-        LOG_DBG("%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", 
-                received_report[0], received_report[1], received_report[2], received_report[3], received_report[4], received_report[5], received_report[6], received_report[7],
-                received_report[8], received_report[9], received_report[10], received_report[11], received_report[12], received_report[13], received_report[14], received_report[15]);
-
 
         return BT_GATT_ITER_CONTINUE;
 }
@@ -101,6 +102,7 @@ static uint8_t discover_func(struct bt_conn *conn,
 
         if (!bt_uuid_cmp(discover_params.uuid, BT_UUID_HIDS))
         {
+                LOG_INF("Search HIDS_INFO");
                 memcpy(&uuid, BT_UUID_HIDS_INFO, sizeof(uuid));
                 discover_params.uuid = &uuid.uuid;
                 discover_params.start_handle = attr->handle + 1;
@@ -114,6 +116,7 @@ static uint8_t discover_func(struct bt_conn *conn,
         }
         else if (!bt_uuid_cmp(discover_params.uuid, BT_UUID_HIDS_INFO))
         {
+                LOG_INF("Search HIDS_CTRL");
                 memcpy(&uuid, BT_UUID_HIDS_CTRL_POINT, sizeof(uuid));
                 discover_params.uuid = &uuid.uuid;
                 discover_params.start_handle = attr->handle + 1;
@@ -129,6 +132,7 @@ static uint8_t discover_func(struct bt_conn *conn,
         }
         else if (!bt_uuid_cmp(discover_params.uuid, BT_UUID_HIDS_CTRL_POINT))
         {
+                LOG_INF("Search HIDS_REPORT_MAP");
                 memcpy(&uuid, BT_UUID_HIDS_REPORT_MAP, sizeof(uuid));
                 discover_params.uuid = &uuid.uuid;
                 discover_params.start_handle = attr->handle + 1;
@@ -144,6 +148,7 @@ static uint8_t discover_func(struct bt_conn *conn,
         }
         else if (!bt_uuid_cmp(discover_params.uuid, BT_UUID_HIDS_REPORT_MAP))
         {
+                LOG_INF("Search HIDS_REPORT");
                 memcpy(&uuid, BT_UUID_HIDS_REPORT, sizeof(uuid));
                 discover_params.uuid = &uuid.uuid;
                 discover_params.start_handle = attr->handle + 1;
@@ -160,6 +165,11 @@ static uint8_t discover_func(struct bt_conn *conn,
         else if (!bt_uuid_cmp(discover_params.uuid, BT_UUID_HIDS_REPORT))
         {
                 struct bt_gatt_chrc *chrc = attr->user_data;
+                if (chrc->properties & BT_GATT_CHRC_WRITE_WITHOUT_RESP)
+                {
+                        hids_report_write_handle = bt_gatt_attr_value_handle(attr);
+                        LOG_INF("hids_report_write_handle [%d]", hids_report_write_handle);
+                }
                 if (chrc->properties & BT_GATT_CHRC_NOTIFY)
                 {
                         memcpy(&uuid, BT_UUID_GATT_CCC, sizeof(uuid));
@@ -176,22 +186,8 @@ static uint8_t discover_func(struct bt_conn *conn,
                                 LOG_ERR("Discover failed (err %d)", err);
                         }
                 }
-                else
-                {
-                        /* this HIDS_REPORT Characteristic didn't support NOTIFY, try next one */
-                        memcpy(&uuid, BT_UUID_HIDS_REPORT, sizeof(uuid));
-                        discover_params.uuid = &uuid.uuid;
-                        discover_params.start_handle = attr->handle + 1;
-                        discover_params.type = BT_GATT_DISCOVER_CHARACTERISTIC;
-
-                        err = bt_gatt_discover(conn, &discover_params);
-                        if (err)
-                        {
-                                LOG_ERR("Discover failed (err %d)", err);
-                        }
-                }
         }
-        else
+        else if (!bt_uuid_cmp(discover_params.uuid, BT_UUID_GATT_CCC))
         {
                 subscribe_params.notify = notify_func;
                 subscribe_params.value = BT_GATT_CCC_NOTIFY;
@@ -207,7 +203,15 @@ static uint8_t discover_func(struct bt_conn *conn,
                         LOG_INF("[SUBSCRIBED]");
                 }
 
-                return BT_GATT_ITER_STOP;
+                memcpy(&uuid, BT_UUID_HIDS_REPORT, sizeof(uuid));
+                discover_params.uuid = &uuid.uuid;
+                discover_params.start_handle = attr->handle + 1;
+                discover_params.type = BT_GATT_DISCOVER_CHARACTERISTIC;
+                err = bt_gatt_discover(conn, &discover_params);
+                if (err)
+                {
+                        LOG_ERR("Discover failed (err %d)", err);
+                }
         }
 
         return BT_GATT_ITER_STOP;
@@ -337,6 +341,7 @@ static void connected(struct bt_conn *conn, uint8_t err)
         bt_conn_set_security(conn, BT_SECURITY_L2);
 
         // discover HID service attributes and subscribe to HID reports
+        LOG_INF("Search HIDS");
         memcpy(&uuid, BT_UUID_HIDS, sizeof(uuid));
         discover_params.uuid = &uuid.uuid;
         discover_params.func = discover_func;
@@ -456,6 +461,14 @@ static int xbox_controller_ble_init(const struct device *dev)
         start_scan();
 
         return 0;
+}
+
+int request_rumble(struct xbox_controller_report_output *report)
+{
+        if (hids_report_write_handle != 0) {
+                return bt_gatt_write_without_response(default_conn, hids_report_write_handle, report, sizeof(struct xbox_controller_report_output), false);
+        }
+        return -EIO;
 }
 
 SYS_INIT(xbox_controller_ble_init, APPLICATION, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);

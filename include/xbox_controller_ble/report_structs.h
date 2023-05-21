@@ -51,3 +51,17 @@ struct xbox_controller_report
 
         uint8_t padding_5;
 };
+
+struct xbox_controller_report_output
+{
+//  uint8_t  reportId;                                 // Report ID = 0x03 (3)
+                                                     // Collection: CA:GamePad CL:SetEffectReport
+  uint8_t  DcEnableActuators : 4; // Usage 0x000F0097: DC Enable Actuators, Value = 0 to 1
+  uint8_t  : 4;                                      // Pad
+  uint8_t  Magnitude[4];   // Usage 0x000F0070: Magnitude, Value = 0 to 100
+  uint8_t  Duration;       // Usage 0x000F0050: Duration, Value = 0 to 255, Physical = Value in 10⁻² s units
+  uint8_t  StartDelay;     // Usage 0x000F00A7: Start Delay, Value = 0 to 255, Physical = Value in 10⁻² s units
+  uint8_t  LoopCount;      // Usage 0x000F007C: Loop Count, Value = 0 to 255
+};
+
+int request_rumble(struct xbox_controller_report_output *report);
