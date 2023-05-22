@@ -7,11 +7,11 @@
 
 #pragma once
 
-static const uint8_t xbox_descriptor[] = {
+static const uint8_t hid_report_desc[] = {
 	0x05, 0x01,        // Usage Page (Generic Desktop Ctrls)
 	0x09, 0x05,        // Usage (Game Pad)
 	0xA1, 0x01,        // Collection (Application)
-	0x85, 0x01,        //   Report ID (1)
+	//0x85, 0x01,        //   Report ID (1)
 	0x09, 0x01,        //   Usage (Pointer)
 	0xA1, 0x00,        //   Collection (Physical)
 	0x09, 0x30,        //     Usage (X)
@@ -101,7 +101,7 @@ static const uint8_t xbox_descriptor[] = {
 	0x81, 0x03,        //   Input (Const,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
 	0x05, 0x0F,        //   Usage Page (PID Page)
 	0x09, 0x21,        //   Usage (0x21)
-	0x85, 0x03,        //   Report ID (3)
+	//0x85, 0x03,        //   Report ID (3)
 	0xA1, 0x02,        //   Collection (Logical)
 	0x09, 0x97,        //     Usage (0x97)
 	0x15, 0x00,        //     Logical Minimum (0)

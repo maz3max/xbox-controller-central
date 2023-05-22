@@ -465,9 +465,11 @@ static int xbox_controller_ble_init(const struct device *dev)
 
 int request_rumble(struct xbox_controller_report_output *report)
 {
-        if (hids_report_write_handle != 0) {
-                return bt_gatt_write_without_response(default_conn, hids_report_write_handle, report, sizeof(struct xbox_controller_report_output), false);
+        struct bt_conn *conn = bt_conn_ref(default_conn);
+        if (controller_connected_value && (hids_report_write_handle != 0)) {
+                return bt_gatt_write_without_response(conn, hids_report_write_handle, report, sizeof(struct xbox_controller_report_output), false);
         }
+        bt_conn_unref(conn);
         return -EIO;
 }
 
