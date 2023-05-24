@@ -32,21 +32,45 @@ static void status_cb(enum usb_dc_status_code status, const uint8_t *param)
 
 static void rumble_ready(const struct device *dev)
 {
-	struct xbox_controller_report_output report = {0};
+	outputReport03_t report_in = {0};
 	uint32_t ret_bytes = 0;
-	uint8_t *r = (uint8_t *)&report;
-	int ret = hid_int_ep_read(dev, r, sizeof(struct xbox_controller_report_output), &ret_bytes);
+	uint8_t *r = (uint8_t *)&report_in;
+	struct xbox_controller_report_output *report_out = (void *)(r+1);
+	int ret = hid_int_ep_read(dev, r, sizeof(outputReport03_t), &ret_bytes);
 
 	if (!ret) {
-		LOG_DBG("< %02x%02x%02x%02x%02x%02x%02x%02x", r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7]);
-		request_rumble(&report);
+		LOG_INF("< %02x%02x%02x%02x%02x%02x%02x%02x%02x", r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8]);
+		request_rumble(report_out);
 	}
+}
+
+static void convert_in_report(struct xbox_controller_report const *in, inputReport01_t *out)
+{	out->reportId = 1;
+	out->BTN_GamePadButton1 = in->a;
+	out->BTN_GamePadButton2 = in->b;
+	out->BTN_GamePadButton3 = in->x;
+	out->BTN_GamePadButton4 = in->y;
+	out->BTN_GamePadButton5 = in->lb;
+	out->BTN_GamePadButton6 = in->rb;
+	out->BTN_GamePadButton7 = in->select;
+	out->BTN_GamePadButton8 = in->start;
+	out->BTN_GamePadButton9 = in->system;
+	out->BTN_GamePadButton10 = in->lstick_btn;
+	out->BTN_GamePadButton11 = in->rstick_btn;
+	out->GD_GamePadX = in->lstick_x >> 8;
+	out->GD_GamePadY = in->lstick_y >> 8;
+	out->GD_GamePadZ = in->rstick_x >> 8;
+	out->GD_GamePadRx = in->rstick_y >> 8;
+	out->GD_GamePadRy = in->lt >> 2;
+	out->GD_GamePadRz = in->rt >> 2;
+	out->GD_GamePadHatSwitch = in->dpad.raw;
 }
 
 
 int main(void)
 {
 	struct xbox_controller_report report = {0};
+	inputReport01_t report_out = {0};
 	int ret;
 
 	LOG_INF("Zephyr Example Application %s\n", APP_VERSION_STR);
@@ -80,9 +104,11 @@ int main(void)
 
 	while (!zbus_sub_wait(&controller_report_subscriber, NULL, K_FOREVER)) {
 		zbus_chan_read(&controller_report, &report, K_FOREVER);
-		uint8_t *r = (uint8_t *)&report;
-		LOG_DBG("> %02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[9], r[10], r[11], r[12], r[13], r[14], r[15]);
-		ret = hid_int_ep_write(hid_dev, r, sizeof(report), NULL);
+		convert_in_report(&report, &report_out);
+
+		uint8_t *r = (uint8_t *)&report_out;
+		LOG_INF("> %02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[9]);
+		ret = hid_int_ep_write(hid_dev, r, sizeof(report_out), NULL);
 		if (ret) {
 			LOG_ERR("HID write error, %d", ret);
 		}
