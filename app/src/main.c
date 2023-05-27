@@ -102,9 +102,11 @@ int main(void)
 		return -1;
 	}
 
-	while (!zbus_sub_wait(&controller_report_subscriber, NULL, K_FOREVER)) {
-		zbus_chan_read(&controller_report, &report, K_FOREVER);
-		convert_in_report(&report, &report_out);
+	while (true) {
+		if (!zbus_sub_wait(&controller_report_subscriber, NULL, K_MSEC(1))) {
+			zbus_chan_read(&controller_report, &report, K_FOREVER);
+			convert_in_report(&report, &report_out);
+		}
 
 		uint8_t *r = (uint8_t *)&report_out;
 		LOG_INF("> %02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[9]);
