@@ -433,6 +433,15 @@ struct bt_conn_auth_info_cb conn_auth_info_callbacks = {
     .pairing_failed = pairing_failed,
 };
 
+static int bt_keys_settings_cb(const char *key, size_t len,
+					       settings_read_cb read_cb,
+					       void *cb_arg, void *param)
+{
+        /* we got a stored key - that means no pairing necessary. */
+        pairing_active = false;
+        return 0;
+}
+
 static int xbox_controller_ble_init(const struct device *dev)
 {
         int err;
@@ -465,6 +474,7 @@ static int xbox_controller_ble_init(const struct device *dev)
 
         settings_subsys_init();
         settings_load();
+        settings_load_subtree_direct("bt/keys", bt_keys_settings_cb, NULL);
 
         LOG_INF("Bluetooth initialized");
 
