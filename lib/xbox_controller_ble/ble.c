@@ -23,6 +23,8 @@
 
 #include "xbox_controller_ble/report_structs.h"
 
+#include "indicator.h"
+
 LOG_MODULE_REGISTER(xbox_ble, CONFIG_XBOX_CONTROLLER_BLE_LOG_LEVEL);
 
 static void start_scan(void);
@@ -307,11 +309,19 @@ static void start_scan(void)
                 return;
         }
 
+        if (pairing_active) {
+                set_indicator_blink_rapid();
+        } else {
+                set_indicator_blink_slow();
+        }
+
         LOG_INF("Scanning successfully started");
 }
 
 static void connected(struct bt_conn *conn, uint8_t err)
 {
+        set_indicator_on();
+
         char addr[BT_ADDR_LE_STR_LEN];
 
         bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
