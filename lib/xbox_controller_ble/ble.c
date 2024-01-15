@@ -24,6 +24,7 @@
 #include "xbox_controller_ble/report_structs.h"
 
 #include "indicator.h"
+#include <dk_buttons_and_leds.h>
 
 LOG_MODULE_REGISTER(xbox_ble, CONFIG_XBOX_CONTROLLER_BLE_LOG_LEVEL);
 
@@ -301,7 +302,6 @@ static void start_scan(void)
 {
         int err;
 
-        /* This demo doesn't require active scan */
         err = bt_le_scan_start(BT_LE_SCAN_ACTIVE, NULL);
         if (err)
         {
@@ -320,7 +320,6 @@ static void start_scan(void)
 
 static void connected(struct bt_conn *conn, uint8_t err)
 {
-        set_indicator_on();
 
         char addr[BT_ADDR_LE_STR_LEN];
 
@@ -341,9 +340,6 @@ static void connected(struct bt_conn *conn, uint8_t err)
         {
                 return;
         }
-
-        // only pair to one device
-        pairing_active = false;
 
         LOG_INF("Connected: %s", addr);
 
@@ -366,6 +362,7 @@ static void connected(struct bt_conn *conn, uint8_t err)
         }
         controller_connected_value = true;
         zbus_chan_pub(&controller_connected, &controller_connected_value, K_NO_WAIT);
+        set_indicator_on();
 }
 
 static void disconnected(struct bt_conn *conn, uint8_t reason)
@@ -419,7 +416,8 @@ static struct bt_conn_auth_cb conn_auth_callbacks = {
 static void pairing_complete(struct bt_conn *conn, bool bonded)
 {
         LOG_INF("Pairing complete"); //, trigger disconnect");
-                                     // bt_conn_disconnect(conn, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
+        //bt_conn_disconnect(conn, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
+        pairing_active = false;
 }
 
 static void pairing_failed(struct bt_conn *conn, enum bt_security_err reason)
@@ -442,11 +440,30 @@ static int bt_keys_settings_cb(const char *key, size_t len,
         return 0;
 }
 
+static void button_handler(uint32_t button_state, uint32_t has_changed)
+{
+	uint32_t button = button_state & has_changed;
+
+	if (button & DK_BTN1_MSK) {
+		if (!pairing_active) {
+                        pairing_active = true;
+                        if (default_conn) {
+                                bt_conn_disconnect(default_conn, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
+                                start_scan();
+                        }
+			bt_unpair(BT_ID_DEFAULT, NULL);
+                        set_indicator_blink_rapid();
+                }
+	}
+}
+
 static int xbox_controller_ble_init(const struct device *dev)
 {
         int err;
 
         pairing_active = true;
+
+        dk_buttons_init(button_handler);
 
         LOG_INF("Scan callbacks register");
         bt_le_scan_cb_register(&scan_callbacks);

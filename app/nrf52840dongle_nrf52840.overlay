@@ -14,5 +14,6 @@
 / {
         aliases {
 		led-indicator = &led0_green;
+                sw-pairing = &button0;
         };
 };
