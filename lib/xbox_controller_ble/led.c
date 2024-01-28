@@ -3,7 +3,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-
 #include <zephyr/types.h>
 #include <zephyr/kernel.h>
 #include <zephyr/sys/byteorder.h>

@@ -35,17 +35,20 @@ static void rumble_ready(const struct device *dev)
 	outputReport03_t report_in = {0};
 	uint32_t ret_bytes = 0;
 	uint8_t *r = (uint8_t *)&report_in;
-	struct xbox_controller_report_output *report_out = (void *)(r+1);
+	struct xbox_controller_report_output *report_out = (void *)(r + 1);
 	int ret = hid_int_ep_read(dev, r, sizeof(outputReport03_t), &ret_bytes);
 
-	if (!ret) {
-		LOG_INF("< %02x%02x%02x%02x%02x%02x%02x%02x%02x", r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8]);
+	if (!ret)
+	{
+		LOG_INF("< %02x%02x%02x%02x%02x%02x%02x%02x%02x",
+			r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8]);
 		request_rumble(report_out);
 	}
 }
 
 static void convert_in_report(struct xbox_controller_report const *in, inputReport01_t *out)
-{	out->reportId = 1;
+{
+	out->reportId = 1;
 	out->BTN_GamePadButton1 = in->a;
 	out->BTN_GamePadButton2 = in->b;
 	out->BTN_GamePadButton3 = in->x;
@@ -66,7 +69,6 @@ static void convert_in_report(struct xbox_controller_report const *in, inputRepo
 	out->GD_GamePadHatSwitch = in->dpad.raw;
 }
 
-
 int main(void)
 {
 	struct xbox_controller_report report = {0};
@@ -81,13 +83,14 @@ int main(void)
 	const struct device *hid_dev;
 
 	hid_dev = device_get_binding("HID_0");
-	if (hid_dev == NULL) {
+	if (hid_dev == NULL)
+	{
 		LOG_ERR("Cannot get USB HID Device");
 		return -1;
 	}
 
 	struct hid_ops op = {
-		.int_out_ready = rumble_ready,
+	    .int_out_ready = rumble_ready,
 	};
 
 	usb_hid_register_device(hid_dev,
@@ -97,21 +100,26 @@ int main(void)
 	usb_hid_init(hid_dev);
 
 	ret = usb_enable(status_cb);
-	if (ret != 0) {
+	if (ret != 0)
+	{
 		LOG_ERR("Failed to enable USB");
 		return -1;
 	}
 
-	while (true) {
-		if (!zbus_sub_wait(&controller_report_subscriber, NULL, K_MSEC(1))) {
+	while (true)
+	{
+		if (!zbus_sub_wait(&controller_report_subscriber, NULL, K_MSEC(1)))
+		{
 			zbus_chan_read(&controller_report, &report, K_FOREVER);
 			convert_in_report(&report, &report_out);
 		}
 
 		uint8_t *r = (uint8_t *)&report_out;
-		LOG_DBG("> %02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[9]);
+		LOG_DBG("> %02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
+			r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[9]);
 		ret = hid_int_ep_write(hid_dev, r, sizeof(report_out), NULL);
-		if (ret) {
+		if (ret)
+		{
 			LOG_DBG("HID write error, %d", ret);
 		}
 	}

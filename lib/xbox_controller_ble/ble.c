@@ -51,12 +51,7 @@ static bool controller_connected_value;
 
 ZBUS_CHAN_DEFINE(controller_report,
                  struct xbox_controller_report,
-                 NULL, NULL, ZBUS_OBSERVERS_EMPTY, ZBUS_MSG_INIT(
-                        .lstick_x = STICK_MIDDLE,
-                        .lstick_y = STICK_MIDDLE,
-                        .rstick_x = STICK_MIDDLE,
-                        .rstick_y = STICK_MIDDLE
-                ));
+                 NULL, NULL, ZBUS_OBSERVERS_EMPTY, ZBUS_MSG_INIT(.lstick_x = STICK_MIDDLE, .lstick_y = STICK_MIDDLE, .rstick_x = STICK_MIDDLE, .rstick_y = STICK_MIDDLE));
 
 ZBUS_CHAN_DEFINE(controller_connected, bool, NULL, NULL, ZBUS_OBSERVERS_EMPTY, false);
 
@@ -73,15 +68,15 @@ static uint8_t notify_func(struct bt_conn *conn,
                 return BT_GATT_ITER_STOP;
         }
 
-        if (length != 16) {
+        if (length != 16)
+        {
                 LOG_ERR("Received report of unsupported length: %d", length);
                 return BT_GATT_ITER_CONTINUE;
         }
 
         memcpy(received_report, data, MIN(ARRAY_SIZE(received_report), length));
 
-
-        const struct xbox_controller_report * report = data;
+        const struct xbox_controller_report *report = data;
 
         zbus_chan_pub(&controller_report, report, K_NO_WAIT);
 
@@ -294,9 +289,6 @@ static void scan_recv(const struct bt_le_scan_recv_info *info,
         if (strcmp("Xbox Wireless Controller", name) == 0)
         {
                 connect_to_device(info->addr);
-                // TODO: use bt_scan_filter_add(BT_SCAN_FILTER_TYPE_NAME, "Xbox Wireless Controller")
-                // TODO: use gpio-keys for a pairing button, gpio-leds for a notification led
-                // TODO: use message queue to transport data, build nice struct to access values
         }
 }
 
@@ -315,9 +307,12 @@ static void start_scan(void)
                 return;
         }
 
-        if (pairing_active) {
+        if (pairing_active)
+        {
                 set_indicator_blink_rapid();
-        } else {
+        }
+        else
+        {
                 set_indicator_blink_slow();
         }
 
@@ -346,7 +341,8 @@ static void connected(struct bt_conn *conn, uint8_t err)
 
         // pair and bond
         err = bt_conn_set_security(conn, BT_SECURITY_L2);
-        if (err && err != -EBUSY) {
+        if (err && err != -EBUSY)
+        {
                 bt_conn_disconnect(conn, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
         }
 }
@@ -374,17 +370,22 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 
 static void security_changed(struct bt_conn *conn, bt_security_t level, enum bt_security_err err)
 {
-	int ret;
+        int ret;
 
-	if (err) {
-		LOG_ERR("Security failed: level %d err %d", level, err);
-		ret = bt_conn_disconnect(conn, err);
-		if (ret) {
-			LOG_ERR("Failed to disconnect %d", ret);
-		}
-	} else {
-		LOG_DBG("Security changed: level %d", level);
-                if (level >= BT_SECURITY_L2) {
+        if (err)
+        {
+                LOG_ERR("Security failed: level %d err %d", level, err);
+                ret = bt_conn_disconnect(conn, err);
+                if (ret)
+                {
+                        LOG_ERR("Failed to disconnect %d", ret);
+                }
+        }
+        else
+        {
+                LOG_DBG("Security changed: level %d", level);
+                if (level >= BT_SECURITY_L2)
+                {
                         // discover HID service attributes and subscribe to HID reports
                         LOG_INF("Search HIDS");
                         memcpy(&uuid, BT_UUID_HIDS, sizeof(uuid));
@@ -404,7 +405,7 @@ static void security_changed(struct bt_conn *conn, bt_security_t level, enum bt_
                         zbus_chan_pub(&controller_connected, &controller_connected_value, K_NO_WAIT);
                         set_indicator_on();
                 }
-	}
+        }
 }
 
 BT_CONN_CB_DEFINE(conn_callbacks) = {
@@ -437,8 +438,7 @@ static struct bt_conn_auth_cb conn_auth_callbacks = {
 
 static void pairing_complete(struct bt_conn *conn, bool bonded)
 {
-        LOG_INF("Pairing complete"); //, trigger disconnect");
-        //bt_conn_disconnect(conn, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
+        LOG_INF("Pairing complete");
         pairing_active = false;
 }
 
@@ -453,32 +453,34 @@ struct bt_conn_auth_info_cb conn_auth_info_callbacks = {
     .pairing_failed = pairing_failed,
 };
 
-
 static void bond_check(const struct bt_bond_info *info, void *user_data)
 {
-	char addr_buf[BT_ADDR_LE_STR_LEN];
+        char addr_buf[BT_ADDR_LE_STR_LEN];
 
-	bt_addr_le_to_str(&info->addr, addr_buf, BT_ADDR_LE_STR_LEN);
+        bt_addr_le_to_str(&info->addr, addr_buf, BT_ADDR_LE_STR_LEN);
 
-	LOG_DBG("Stored bonding found: %s", addr_buf);
+        LOG_DBG("Stored bonding found: %s", addr_buf);
         pairing_active = false;
 }
 
 static void button_handler(uint32_t button_state, uint32_t has_changed)
 {
-	uint32_t button = button_state & has_changed;
+        uint32_t button = button_state & has_changed;
 
-	if (button & DK_BTN1_MSK) {
-		if (!pairing_active) {
+        if (button & DK_BTN1_MSK)
+        {
+                if (!pairing_active)
+                {
                         pairing_active = true;
-                        if (default_conn) {
+                        if (default_conn)
+                        {
                                 bt_conn_disconnect(default_conn, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
                                 start_scan();
                         }
-			bt_unpair(BT_ID_DEFAULT, NULL);
+                        bt_unpair(BT_ID_DEFAULT, NULL);
                         set_indicator_blink_rapid();
                 }
-	}
+        }
 }
 
 static int xbox_controller_ble_init(const struct device *dev)
@@ -527,7 +529,8 @@ static int xbox_controller_ble_init(const struct device *dev)
 int request_rumble(struct xbox_controller_report_output *report)
 {
         struct bt_conn *conn = bt_conn_ref(default_conn);
-        if (controller_connected_value && (hids_report_write_handle != 0)) {
+        if (controller_connected_value && (hids_report_write_handle != 0))
+        {
                 return bt_gatt_write_without_response(conn, hids_report_write_handle, report, sizeof(struct xbox_controller_report_output), false);
         }
         bt_conn_unref(conn);
