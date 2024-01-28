@@ -115,6 +115,7 @@ static uint8_t discover_func(struct bt_conn *conn,
                 if (err)
                 {
                         LOG_ERR("Discover failed (err %d)", err);
+                        return BT_GATT_ITER_STOP;
                 }
         }
         else if (!bt_uuid_cmp(discover_params.uuid, BT_UUID_HIDS_INFO))
@@ -131,6 +132,7 @@ static uint8_t discover_func(struct bt_conn *conn,
                 if (err)
                 {
                         LOG_ERR("Discover failed (err %d)", err);
+                        return BT_GATT_ITER_STOP;
                 }
         }
         else if (!bt_uuid_cmp(discover_params.uuid, BT_UUID_HIDS_CTRL_POINT))
@@ -147,6 +149,7 @@ static uint8_t discover_func(struct bt_conn *conn,
                 if (err)
                 {
                         LOG_ERR("Discover failed (err %d)", err);
+                        return BT_GATT_ITER_STOP;
                 }
         }
         else if (!bt_uuid_cmp(discover_params.uuid, BT_UUID_HIDS_REPORT_MAP))
@@ -163,6 +166,7 @@ static uint8_t discover_func(struct bt_conn *conn,
                 if (err)
                 {
                         LOG_ERR("Discover failed (err %d)", err);
+                        return BT_GATT_ITER_STOP;
                 }
         }
         else if (!bt_uuid_cmp(discover_params.uuid, BT_UUID_HIDS_REPORT))
@@ -187,6 +191,7 @@ static uint8_t discover_func(struct bt_conn *conn,
                         if (err)
                         {
                                 LOG_ERR("Discover failed (err %d)", err);
+                                return BT_GATT_ITER_STOP;
                         }
                 }
         }
@@ -200,6 +205,7 @@ static uint8_t discover_func(struct bt_conn *conn,
                 if (err && err != -EALREADY)
                 {
                         LOG_ERR("Subscribe failed (err %d)", err);
+                        return BT_GATT_ITER_STOP;
                 }
                 else
                 {
@@ -336,33 +342,13 @@ static void connected(struct bt_conn *conn, uint8_t err)
                 return;
         }
 
-        if (conn != default_conn)
-        {
-                return;
-        }
-
         LOG_INF("Connected: %s", addr);
 
         // pair and bond
-        bt_conn_set_security(conn, BT_SECURITY_L2);
-
-        // discover HID service attributes and subscribe to HID reports
-        LOG_INF("Search HIDS");
-        memcpy(&uuid, BT_UUID_HIDS, sizeof(uuid));
-        discover_params.uuid = &uuid.uuid;
-        discover_params.func = discover_func;
-        discover_params.start_handle = BT_ATT_FIRST_ATTRIBUTE_HANDLE;
-        discover_params.end_handle = BT_ATT_LAST_ATTRIBUTE_HANDLE;
-        discover_params.type = BT_GATT_DISCOVER_PRIMARY;
-        err = bt_gatt_discover(default_conn, &discover_params);
-        if (err)
-        {
-                LOG_ERR("Discover failed(err %d)", err);
-                return;
+        err = bt_conn_set_security(conn, BT_SECURITY_L2);
+        if (err && err != -EBUSY) {
+                bt_conn_disconnect(conn, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
         }
-        controller_connected_value = true;
-        zbus_chan_pub(&controller_connected, &controller_connected_value, K_NO_WAIT);
-        set_indicator_on();
 }
 
 static void disconnected(struct bt_conn *conn, uint8_t reason)
@@ -381,14 +367,50 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
         bt_conn_unref(default_conn);
         default_conn = NULL;
 
-        start_scan();
         controller_connected_value = false;
         zbus_chan_pub(&controller_connected, &controller_connected_value, K_NO_WAIT);
+        start_scan();
+}
+
+static void security_changed(struct bt_conn *conn, bt_security_t level, enum bt_security_err err)
+{
+	int ret;
+
+	if (err) {
+		LOG_ERR("Security failed: level %d err %d", level, err);
+		ret = bt_conn_disconnect(conn, err);
+		if (ret) {
+			LOG_ERR("Failed to disconnect %d", ret);
+		}
+	} else {
+		LOG_DBG("Security changed: level %d", level);
+                if (level >= BT_SECURITY_L2) {
+                        // discover HID service attributes and subscribe to HID reports
+                        LOG_INF("Search HIDS");
+                        memcpy(&uuid, BT_UUID_HIDS, sizeof(uuid));
+                        discover_params.uuid = &uuid.uuid;
+                        discover_params.func = discover_func;
+                        discover_params.start_handle = BT_ATT_FIRST_ATTRIBUTE_HANDLE;
+                        discover_params.end_handle = BT_ATT_LAST_ATTRIBUTE_HANDLE;
+                        discover_params.type = BT_GATT_DISCOVER_PRIMARY;
+                        err = bt_gatt_discover(default_conn, &discover_params);
+                        if (err)
+                        {
+                                LOG_ERR("Discover failed(err %d)", err);
+                                bt_conn_disconnect(conn, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
+                                return;
+                        }
+                        controller_connected_value = true;
+                        zbus_chan_pub(&controller_connected, &controller_connected_value, K_NO_WAIT);
+                        set_indicator_on();
+                }
+	}
 }
 
 BT_CONN_CB_DEFINE(conn_callbacks) = {
     .connected = connected,
     .disconnected = disconnected,
+    .security_changed = security_changed,
 };
 
 static void pairing_cancel(struct bt_conn *conn)
@@ -423,7 +445,7 @@ static void pairing_complete(struct bt_conn *conn, bool bonded)
 static void pairing_failed(struct bt_conn *conn, enum bt_security_err reason)
 {
         LOG_ERR("Pairing failed (%d), trigger disconnect", reason);
-        bt_conn_disconnect(conn, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
+        bt_conn_disconnect(default_conn, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
 }
 
 struct bt_conn_auth_info_cb conn_auth_info_callbacks = {
@@ -431,13 +453,15 @@ struct bt_conn_auth_info_cb conn_auth_info_callbacks = {
     .pairing_failed = pairing_failed,
 };
 
-static int bt_keys_settings_cb(const char *key, size_t len,
-					       settings_read_cb read_cb,
-					       void *cb_arg, void *param)
+
+static void bond_check(const struct bt_bond_info *info, void *user_data)
 {
-        /* we got a stored key - that means no pairing necessary. */
+	char addr_buf[BT_ADDR_LE_STR_LEN];
+
+	bt_addr_le_to_str(&info->addr, addr_buf, BT_ADDR_LE_STR_LEN);
+
+	LOG_DBG("Stored bonding found: %s", addr_buf);
         pairing_active = false;
-        return 0;
 }
 
 static void button_handler(uint32_t button_state, uint32_t has_changed)
@@ -491,7 +515,7 @@ static int xbox_controller_ble_init(const struct device *dev)
 
         settings_subsys_init();
         settings_load();
-        settings_load_subtree_direct("bt/keys", bt_keys_settings_cb, NULL);
+        bt_foreach_bond(BT_ID_DEFAULT, bond_check, NULL);
 
         LOG_INF("Bluetooth initialized");
 

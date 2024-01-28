@@ -109,10 +109,10 @@ int main(void)
 		}
 
 		uint8_t *r = (uint8_t *)&report_out;
-		LOG_INF("> %02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[9]);
+		LOG_DBG("> %02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[9]);
 		ret = hid_int_ep_write(hid_dev, r, sizeof(report_out), NULL);
 		if (ret) {
-			LOG_ERR("HID write error, %d", ret);
+			LOG_DBG("HID write error, %d", ret);
 		}
 	}
 
